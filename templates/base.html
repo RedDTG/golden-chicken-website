@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Golden Chicken{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="brand">🐔 Golden Chicken</div>
+        <nav>
+            <a href="/" class="{{ 'active' if active == 'overview' else '' }}">Classement</a>
+            <a href="/historique" class="{{ 'active' if active == 'historique' else '' }}">Historique</a>
+            <a href="/solde" class="{{ 'active' if active == 'solde' else '' }}">Solde</a>
+        </nav>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

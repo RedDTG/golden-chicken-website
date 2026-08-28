@@ -1,0 +1,83 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A read-only FastAPI website that reproduces the Google Sheet dashboard used
+by the sibling repo `golden-chicken-stats`: a player leaderboard (Overview
+tab), a paginated fight log (Cockfights tab), and a balance-tracking view
+(Bank tab). Instead of talking to the Google Sheets API, it reads directly
+from `golden-chicken-stats`'s SQLite file (`bot.db`), which that bot's own
+CLAUDE.md documents as the actual source of truth (Sheets is just a mirror
+kept in sync from it). This site never writes to that database — every
+connection is opened `mode=ro` (see `db.py`).
+
+Related repos (siblings, not submodules):
+- `golden-chicken-stats` — the Discord bot that logs `+cf` cockfight results
+  and `+bal` balances into `bot.db` and syncs them to the Google Sheet. Owns
+  the schema this site reads (`stats`/`bank` tables) and the semantics of
+  every column (see its CLAUDE.md, especially "SQLite as source of truth" and
+  the Overview-sheet grouping logic this site's `build_overview()` mirrors).
+- `golden-chicken-finder` — the self-bot that actually farms `+cf`. Unrelated
+  to this site beyond farming the data `golden-chicken-stats` logs.
+
+## Setup & running
+
+```bash
+python -m venv venv
+venv/bin/pip install -r requirements.txt
+cp .env.example .env   # then set DB_PATH
+venv/bin/python app.py
+```
+
+Deployed via Nixpacks (`nixpacks.toml`: `uvicorn app:app` as the start
+command, bound to Nixpacks' `$PORT`).
+
+Environment variables (see `.env.example`, loaded via `python-dotenv`):
+- `DB_PATH` (default `bot.db`) — path to `golden-chicken-stats`'s SQLite
+  file. **Must be the same file or a volume shared with that bot's own
+  `DB_PATH`** for the site to show current data; a stale/local copy will
+  silently show stale data since nothing here ever fetches from Sheets or
+  Discord directly.
+- `PORT` (default `8000`) — only used by the `python app.py` entry point;
+  Nixpacks/uvicorn's own `$PORT` takes precedence in that deployment path.
+
+There is no test suite, linter, or build step in this repo.
+
+## Architecture
+
+Everything is small and un-abstracted on purpose — three routes, one query
+module:
+
+1. **`db.py`**: all SQLite access. `get_connection()` opens a fresh
+   `mode=ro` URI connection per request (cheap for SQLite, and safe against
+   the bot's concurrent WAL writes — readers get a consistent snapshot
+   without blocking the writer). `build_overview()` re-implements, in
+   Python, the exact grouping rule `golden-chicken-stats`'s
+   `_update_overview_impl()` uses for its Overview sheet: group by
+   `id:{player_id}` when a row has one, else fall back to
+   `name:{lower(player)}` for rows logged before the `player_id` column
+   existed. This has to stay in sync by hand with that function if its
+   grouping logic ever changes — there's no shared code between the two
+   repos, just the shared database. Aggregates (wins/losses/winrate/best
+   win %/profit) are computed by scanning every matching `stats` row in
+   Python per request rather than in SQL, matching the sibling bot's own
+   approach and keeping the fallback-grouping logic in one readable place;
+   revisit only if the row count ever makes this slow.
+2. **`app.py`**: three FastAPI routes rendering Jinja2 templates —
+   `/` (leaderboard + top-5 win-probability records), `/historique`
+   (paginated, filterable fight log), `/solde` (paginated, filterable
+   `+bal` log). All filtering/sorting/pagination is server-side via query
+   params (no JS framework, no client state) — a page reload is the whole
+   interaction model, deliberately, to match the rest of this project's
+   preference for simple single-purpose scripts over a build pipeline.
+3. **Templates/static**: plain Jinja2 + hand-written CSS (`static/style.css`,
+   dark theme), no bundler, no client-side JS beyond `<select onchange>`
+   auto-submitting a filter form.
+
+Because the schema and the `Victoire`/`Defaite`/gain-sign/strength-as-percent
+conventions all come from `golden-chicken-stats`, any change to that bot's
+`stats`/`bank` table schema or to its result/gain encoding needs a matching
+update here (`db.py`'s queries and `build_overview()`) or this site will
+silently misread the data (wrong aggregates, not a crash).

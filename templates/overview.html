@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Classement - Golden Chicken{% endblock %}
+
+{% macro sort_link(key, label) %}
+<a class="sortable {{ 'sorted-' ~ dir if sort == key else '' }}"
+   href="?server={{ selected_server }}&sort={{ key }}&dir={{ 'asc' if sort == key and dir == 'desc' else 'desc' }}">{{ label }}</a>
+{% endmacro %}
+
+{% block content %}
+<form class="filters" method="get">
+    <label>
+        Serveur
+        <select name="server" onchange="this.form.submit()">
+            <option value="" {{ 'selected' if not selected_server else '' }}>Tous</option>
+            {% for s in servers %}
+            <option value="{{ s }}" {{ 'selected' if s == selected_server else '' }}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="dir" value="{{ dir }}">
+</form>
+
+<section class="summary-cards">
+    <div class="card">
+        <span class="card-label">Combats</span>
+        <span class="card-value">{{ totals.total }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Victoires</span>
+        <span class="card-value win">{{ totals.wins }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Defaites</span>
+        <span class="card-value loss">{{ totals.losses }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Winrate</span>
+        <span class="card-value">{{ "%.1f"|format(totals.winrate * 100) }}%</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Rentabilite</span>
+        <span class="card-value {{ 'win' if totals.profit >= 0 else 'loss' }}">{{ "{:+d}".format(totals.profit) }}</span>
+    </div>
+</section>
+
+<h2>Classement des joueurs</h2>
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>{{ sort_link('joueur', 'Joueur') }}</th>
+            <th>{{ sort_link('total', 'Total') }}</th>
+            <th>{{ sort_link('victoires', 'Victoires') }}</th>
+            <th>{{ sort_link('defaites', 'Defaites') }}</th>
+            <th>{{ sort_link('winrate', 'Winrate') }}</th>
+            <th>{{ sort_link('record', 'Meilleur poulet') }}</th>
+            <th>{{ sort_link('profit', 'Rentabilite') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.display_name }}</td>
+            <td>{{ row.total }}</td>
+            <td class="win">{{ row.wins }}</td>
+            <td class="loss">{{ row.losses }}</td>
+            <td>{{ "%.1f"|format(row.winrate * 100) }}%</td>
+            <td>{{ row.best_strength ~ "%" if row.best_strength is not none else "-" }}</td>
+            <td class="{{ 'win' if row.profit >= 0 else 'loss' }}">{{ "{:+d}".format(row.profit) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">Aucune donnee.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<h2>Records (plus hautes probabilites gagnees)</h2>
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr><th>Joueur</th><th>Probabilite</th><th>Serveur</th><th>Date</th></tr>
+    </thead>
+    <tbody>
+        {% for r in records %}
+        <tr>
+            <td>{{ r.player }}</td>
+            <td>{{ r.strength }}%</td>
+            <td>{{ r.server }}</td>
+            <td>{{ r.timestamp }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty">Aucune donnee.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

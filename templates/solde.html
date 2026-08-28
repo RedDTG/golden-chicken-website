@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Solde - Golden Chicken{% endblock %}
+
+{% block content %}
+<form class="filters" method="get">
+    <label>
+        Serveur
+        <select name="server">
+            <option value="" {{ 'selected' if not selected_server else '' }}>Tous</option>
+            {% for s in servers %}
+            <option value="{{ s }}" {{ 'selected' if s == selected_server else '' }}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        Joueur
+        <input type="text" name="player" value="{{ player }}" placeholder="Pseudo...">
+    </label>
+    <button type="submit">Filtrer</button>
+</form>
+
+<h2>Suivi du solde <span class="count">({{ total }})</span></h2>
+<p class="hint">Chaque ligne correspond a un <code>+bal</code> observe dans le salon pour un joueur suivi (voir <code>TRACKED_MEMBER_IDS</code> du bot golden-chicken-stats).</p>
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Joueur</th>
+            <th>Cash</th>
+            <th>Banque</th>
+            <th>Total</th>
+            <th>Serveur</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.timestamp }}</td>
+            <td>{{ row.player }}</td>
+            <td>{{ row.cash }}</td>
+            <td>{{ row.banque }}</td>
+            <td>{{ row.total }}</td>
+            <td>{{ row.server }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">Aucune donnee.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if pages > 1 %}
+<nav class="pagination">
+    {% if page > 1 %}
+    <a href="?server={{ selected_server }}&player={{ player }}&page={{ page - 1 }}">&laquo; Precedent</a>
+    {% endif %}
+    <span>Page {{ page }} / {{ pages }}</span>
+    {% if page < pages %}
+    <a href="?server={{ selected_server }}&player={{ player }}&page={{ page + 1 }}">Suivant &raquo;</a>
+    {% endif %}
+</nav>
+{% endif %}
+{% endblock %}
