@@ -2,7 +2,6 @@ import math
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -16,12 +15,11 @@ PAGE_SIZE = 50
 
 
 @app.get("/")
-def overview(request: Request, server: str = "", sort: str = "total", dir: str = "desc"):
+def overview(request: Request, sort: str = "total", dir: str = "desc"):
     with db.get_connection() as conn:
-        servers = db.list_servers(conn)
-        rows = db.build_overview(conn, server or None)
+        rows = db.build_overview(conn)
         rows = db.sort_overview(rows, sort, dir)
-        records = db.fetch_records(conn, server or None, limit=5)
+        records = db.fetch_records(conn, limit=5)
 
     totals = {
         "total": sum(r["total"] for r in rows),
@@ -36,8 +34,6 @@ def overview(request: Request, server: str = "", sort: str = "total", dir: str =
         {
             "request": request,
             "active": "overview",
-            "servers": servers,
-            "selected_server": server,
             "rows": rows,
             "totals": totals,
             "records": records,
@@ -48,19 +44,10 @@ def overview(request: Request, server: str = "", sort: str = "total", dir: str =
 
 
 @app.get("/historique")
-def historique(
-    request: Request,
-    server: str = "",
-    player: str = "",
-    result: str = "",
-    page: int = 1,
-):
+def historique(request: Request, player: str = "", result: str = "", page: int = 1):
     page = max(page, 1)
     with db.get_connection() as conn:
-        servers = db.list_servers(conn)
-        rows, total = db.fetch_history(
-            conn, server or None, player or None, result or None, page, PAGE_SIZE
-        )
+        rows, total = db.fetch_history(conn, player or None, result or None, page, PAGE_SIZE)
 
     pages = max(math.ceil(total / PAGE_SIZE), 1)
     return templates.TemplateResponse(
@@ -68,8 +55,6 @@ def historique(
         {
             "request": request,
             "active": "historique",
-            "servers": servers,
-            "selected_server": server,
             "player": player,
             "result": result,
             "rows": rows,
@@ -81,11 +66,10 @@ def historique(
 
 
 @app.get("/solde")
-def solde(request: Request, server: str = "", player: str = "", page: int = 1):
+def solde(request: Request, player: str = "", page: int = 1):
     page = max(page, 1)
     with db.get_connection() as conn:
-        servers = db.list_servers(conn)
-        rows, total = db.fetch_bank(conn, server or None, player or None, page, PAGE_SIZE)
+        rows, total = db.fetch_bank(conn, player or None, page, PAGE_SIZE)
 
     pages = max(math.ceil(total / PAGE_SIZE), 1)
     return templates.TemplateResponse(
@@ -93,8 +77,6 @@ def solde(request: Request, server: str = "", player: str = "", page: int = 1):
         {
             "request": request,
             "active": "solde",
-            "servers": servers,
-            "selected_server": server,
             "player": player,
             "rows": rows,
             "total": total,

@@ -4,15 +4,6 @@
 {% block content %}
 <form class="filters" method="get">
     <label>
-        Serveur
-        <select name="server">
-            <option value="" {{ 'selected' if not selected_server else '' }}>Tous</option>
-            {% for s in servers %}
-            <option value="{{ s }}" {{ 'selected' if s == selected_server else '' }}>{{ s }}</option>
-            {% endfor %}
-        </select>
-    </label>
-    <label>
         Joueur
         <input type="text" name="player" value="{{ player }}" placeholder="Pseudo...">
     </label>
@@ -37,7 +28,6 @@
             <th>Resultat</th>
             <th>Gain</th>
             <th>Probabilite</th>
-            <th>Serveur</th>
         </tr>
     </thead>
     <tbody>
@@ -48,10 +38,9 @@
             <td class="{{ 'win' if row.result == 'Victoire' else 'loss' }}">{{ row.result }}</td>
             <td class="{{ 'win' if row.gain and not row.gain.startswith('-') else '' }}">{{ row.gain or "-" }}</td>
             <td>{{ row.strength ~ "%" if row.strength else "-" }}</td>
-            <td>{{ row.server }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="empty">Aucune donnee.</td></tr>
+        <tr><td colspan="5" class="empty">Aucune donnee.</td></tr>
         {% endfor %}
     </tbody>
 </table>
@@ -60,11 +49,11 @@
 {% if pages > 1 %}
 <nav class="pagination">
     {% if page > 1 %}
-    <a href="?server={{ selected_server }}&player={{ player }}&result={{ result }}&page={{ page - 1 }}">&laquo; Precedent</a>
+    <a href="?player={{ player }}&result={{ result }}&page={{ page - 1 }}">&laquo; Precedent</a>
     {% endif %}
     <span>Page {{ page }} / {{ pages }}</span>
     {% if page < pages %}
-    <a href="?server={{ selected_server }}&player={{ player }}&result={{ result }}&page={{ page + 1 }}">Suivant &raquo;</a>
+    <a href="?player={{ player }}&result={{ result }}&page={{ page + 1 }}">Suivant &raquo;</a>
     {% endif %}
 </nav>
 {% endif %}

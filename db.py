@@ -40,32 +40,20 @@ def _parse_int(value):
         return None
 
 
-def list_servers(conn):
-    rows = conn.execute(
-        "SELECT DISTINCT server FROM stats WHERE server != '' "
-        "UNION SELECT DISTINCT server FROM bank WHERE server != '' "
-        "ORDER BY server"
+def fetch_stats_rows(conn):
+    return conn.execute(
+        "SELECT message_id, timestamp, player, result, gain, strength, player_id "
+        "FROM stats ORDER BY timestamp ASC"
     ).fetchall()
-    return [r["server"] for r in rows]
 
 
-def fetch_stats_rows(conn, server=None):
-    query = "SELECT message_id, timestamp, player, result, gain, strength, server, player_id FROM stats"
-    params = []
-    if server:
-        query += " WHERE server = ?"
-        params.append(server)
-    query += " ORDER BY timestamp ASC"
-    return conn.execute(query, params).fetchall()
-
-
-def build_overview(conn, server=None):
+def build_overview(conn):
     """Reproduit le calcul de l'onglet Overview du Google Sheet (voir
     _update_overview_impl dans golden-chicken-stats/bot.py) : regroupement
     par ID Discord quand connu, sinon par pseudo en minuscules pour les
     lignes historiques anterieures a l'ajout de la colonne ID Joueur.
     """
-    rows = fetch_stats_rows(conn, server)
+    rows = fetch_stats_rows(conn)
     groups = {}
     order = []
     for row in rows:
@@ -120,12 +108,9 @@ def sort_overview(overview, sort="total", direction="desc"):
     return sorted(overview, key=key_fn, reverse=(direction != "asc"))
 
 
-def fetch_history(conn, server=None, player=None, result=None, page=1, page_size=50):
+def fetch_history(conn, player=None, result=None, page=1, page_size=50):
     where = []
     params = []
-    if server:
-        where.append("server = ?")
-        params.append(server)
     if player:
         where.append("player LIKE ?")
         params.append(f"%{player}%")
@@ -137,19 +122,16 @@ def fetch_history(conn, server=None, player=None, result=None, page=1, page_size
     total = conn.execute(f"SELECT COUNT(*) FROM stats {where_sql}", params).fetchone()[0]
     offset = (page - 1) * page_size
     rows = conn.execute(
-        f"SELECT message_id, timestamp, player, result, gain, strength, server "
+        f"SELECT message_id, timestamp, player, result, gain, strength "
         f"FROM stats {where_sql} ORDER BY timestamp DESC LIMIT ? OFFSET ?",
         params + [page_size, offset],
     ).fetchall()
     return rows, total
 
 
-def fetch_bank(conn, server=None, player=None, page=1, page_size=50):
+def fetch_bank(conn, player=None, page=1, page_size=50):
     where = []
     params = []
-    if server:
-        where.append("server = ?")
-        params.append(server)
     if player:
         where.append("player LIKE ?")
         params.append(f"%{player}%")
@@ -158,22 +140,18 @@ def fetch_bank(conn, server=None, player=None, page=1, page_size=50):
     total = conn.execute(f"SELECT COUNT(*) FROM bank {where_sql}", params).fetchone()[0]
     offset = (page - 1) * page_size
     rows = conn.execute(
-        f"SELECT message_id, timestamp, player, cash, banque, total, server "
+        f"SELECT message_id, timestamp, player, cash, banque, total "
         f"FROM bank {where_sql} ORDER BY timestamp DESC LIMIT ? OFFSET ?",
         params + [page_size, offset],
     ).fetchall()
     return rows, total
 
 
-def fetch_records(conn, server=None, limit=10):
-    where = "result = ? AND strength != ''"
-    params = [RESULT_VICTOIRE]
-    if server:
-        where += " AND server = ?"
-        params.append(server)
+def fetch_records(conn, limit=10):
     rows = conn.execute(
-        f"SELECT player, strength, server, timestamp, message_id FROM stats WHERE {where} "
-        f"ORDER BY CAST(strength AS INTEGER) DESC LIMIT ?",
-        params + [limit],
+        "SELECT player, strength, timestamp, message_id FROM stats "
+        "WHERE result = ? AND strength != '' "
+        "ORDER BY CAST(strength AS INTEGER) DESC LIMIT ?",
+        (RESULT_VICTOIRE, limit),
     ).fetchall()
     return rows

@@ -73,8 +73,16 @@ module:
    interaction model, deliberately, to match the rest of this project's
    preference for simple single-purpose scripts over a build pipeline.
 3. **Templates/static**: plain Jinja2 + hand-written CSS (`static/style.css`,
-   dark theme), no bundler, no client-side JS beyond `<select onchange>`
-   auto-submitting a filter form.
+   dark theme), no bundler, no client-side JS at all — filter forms submit
+   as a plain GET.
+
+No `Serveur` dimension anywhere (filter or column): every row in this
+deployment's `bot.db` is from the single Discord server this is run for, so
+a per-row/per-query server field would just repeat the same value on every
+line. If this ever needs to serve more than one server's data again, the
+`server` column is still on `stats`/`bank` in the shared database — only the
+view layer here dropped it, so reintroducing the filter is a `db.py`/routes
+change, not a schema migration.
 
 Because the schema and the `Victoire`/`Defaite`/gain-sign/strength-as-percent
 conventions all come from `golden-chicken-stats`, any change to that bot's
