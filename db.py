@@ -84,8 +84,44 @@ def build_overview(conn):
         if gain is not None:
             g["profit"] += gain
 
+    # Reconciliation : les combats loggues avant que golden-chicken-stats ait
+    # pu resoudre l'ID Discord du joueur (voir son CLAUDE.md, section
+    # "Overview sheet") atterrissent dans un groupe name:{pseudo} distinct du
+    # groupe id:{player_id} qui recoit ses combats une fois l'ID connu - un
+    # meme joueur se retrouverait sinon affiche deux fois dans le classement.
+    # On fusionne un groupe orphelin (sans ID) dans le groupe avec ID qui
+    # partage le meme pseudo, uniquement quand la correspondance est unique -
+    # deux joueurs distincts peuvent en theorie partager le meme pseudo, donc
+    # on ne devine pas en cas d'ambiguite (meme niveau de confiance que le
+    # reste de ce fichier/de golden-chicken-stats sur les pseudos).
+    id_groups_by_name = {}
+    for key in order:
+        if key.startswith("id:"):
+            id_groups_by_name.setdefault(groups[key]["display_name"].lower(), []).append(key)
+
+    merged_away = set()
+    for key in order:
+        if not key.startswith("name:"):
+            continue
+        candidates = id_groups_by_name.get(groups[key]["display_name"].lower(), [])
+        if len(candidates) != 1:
+            continue
+        target = groups[candidates[0]]
+        orphan = groups[key]
+        target["total"] += orphan["total"]
+        target["wins"] += orphan["wins"]
+        target["losses"] += orphan["losses"]
+        target["profit"] += orphan["profit"]
+        if orphan["best_strength"] is not None and (
+            target["best_strength"] is None or orphan["best_strength"] > target["best_strength"]
+        ):
+            target["best_strength"] = orphan["best_strength"]
+        merged_away.add(key)
+
     overview = []
     for key in order:
+        if key in merged_away:
+            continue
         g = groups[key]
         g["winrate"] = (g["wins"] / g["total"]) if g["total"] else 0
         overview.append(g)
