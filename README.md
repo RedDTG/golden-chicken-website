@@ -21,6 +21,14 @@ Ou avec uvicorn directement (rechargement auto en dev) :
 venv/bin/uvicorn app:app --reload
 ```
 
+Par defaut ceci n'ecoute que sur `127.0.0.1` (localhost). Pour y acceder
+depuis un autre appareil du meme reseau local (ex. `http://192.168.1.65:8000`),
+ajouter `--host 0.0.0.0` :
+
+```bash
+venv/bin/uvicorn app:app --reload --host 0.0.0.0
+```
+
 `DB_PATH` doit pointer vers le meme fichier `bot.db` (ou une copie/volume
 partage) que le bot `golden-chicken-stats` — voir son `.env.example`
 (`DB_PATH`). Le site n'ecrit jamais dans cette base (connexion SQLite
