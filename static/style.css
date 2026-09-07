@@ -196,15 +196,16 @@ tbody tr:hover {
 }
 
 .streak-row {
-    background: rgba(240, 180, 41, 0.1);
+    background: rgba(240, 180, 41, 0.22);
 }
 
-.streak-row td:first-child {
+.streak-row td {
     color: var(--gold);
+    font-weight: 600;
 }
 
 .section-divider td {
-    border-top: 3px solid var(--gold);
+    border-top: 4px solid var(--gold);
 }
 
 a.sortable {
