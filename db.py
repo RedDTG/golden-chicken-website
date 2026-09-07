@@ -284,6 +284,18 @@ def _rarity(total_fights, n):
     return 1 - cdf_le1
 
 
+def _prob_at_least_one(total_fights, n):
+    """Probabilite d'avoir deja obtenu (ou d'obtenir) AU MOINS UN poulet a
+    >= n victoires d'affilee sur total_fights combats au total, si chaque
+    combat etait une tentative independante de probabilite
+    _prob_reach_n_wins(n) - c'est 1 - P(X=0) pour X ~ Binomial(total_fights;
+    p), pas 1 - P(X<=1) (qui demanderait au moins deux occurrences, utilise
+    par _rarity() pour juger si le record observe est statistiquement
+    surprenant, un besoin different)."""
+    p = _prob_reach_n_wins(n)
+    return 1 - (1 - p) ** total_fights
+
+
 # Horizons de la table "Objectifs" - (libelle, heures pour Best streak, objectif de % de victoire)
 FARMING_GOALS = [
     ("5h", 5, 0.86),
@@ -302,7 +314,7 @@ def farming_goals(conn, total_fights):
             {
                 "label": label,
                 "goal_pct": goal_pct,
-                "actual_chance": _rarity(total_fights, n),
+                "actual_chance": _prob_at_least_one(total_fights, n),
                 "avg_needed": avg_needed,
                 "completion": (total_fights / avg_needed) if avg_needed else 0,
                 "remaining": avg_needed - total_fights,
