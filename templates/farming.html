@@ -41,7 +41,7 @@
     </thead>
     <tbody>
         {% for label, hours in windows %}
-        <tr class="streak-row">
+        <tr>
             <td>Best streak ({{ label }})</td>
             {% for c in columns %}
             <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ streak_cell(c.streaks, label) }}</td>
