@@ -28,8 +28,8 @@ def farming(request: Request):
         all_streaks["all"] = db.best_streak(conn)
         all_row = {"name": "All", "streaks": all_streaks, **db.player_row_stats(conn)}
 
-        goals = db.farming_goals(conn, all_row["total"])
         record = db.farming_record(conn)
+        ladder = db.farming_ladder(conn, all_row["total"], start_pct=record["strength"] if record else 50)
 
     return templates.TemplateResponse(
         "farming.html",
@@ -38,7 +38,7 @@ def farming(request: Request):
             "active": "farming",
             "windows": FARMING_WINDOWS,
             "columns": players + [all_row],
-            "goals": goals,
+            "ladder": ladder,
             "record": record,
         },
     )

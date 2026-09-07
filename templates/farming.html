@@ -83,26 +83,26 @@
 </div>
 
 <h2>Objectifs</h2>
-<p class="hint">Chance actuelle = probabilite d'observer au moins 2 fois un poulet a ce niveau, vu le nombre de combats deja joues. Combats moyens necessaires = nombre moyen de poulets qu'il faudrait pour qu'un seul y arrive (loi geometrique).</p>
+<p class="hint">Du record actuel a 100%, une ligne par point de victoire. Proba d'y arriver = chance qu'un poulet frais enchaine ce nombre de victoires d'affilee avant de perdre. Chance actuelle = probabilite d'avoir deja obtenu au moins un poulet a ce niveau, vu le nombre de combats deja joues. Combats moyens necessaires = nombre moyen de poulets qu'il faudrait pour qu'un seul y arrive (loi geometrique).</p>
 <div class="table-wrap">
 <table>
     <thead>
         <tr>
-            <th>Horizon</th>
             <th>Objectif</th>
-            <th>Chance actuelle</th>
+            <th>Proba d'y arriver</th>
             <th>Combats moyens necessaires</th>
+            <th>Chance actuelle</th>
             <th>% Completion</th>
             <th>Restant</th>
         </tr>
     </thead>
     <tbody>
-        {% for g in goals %}
-        <tr>
-            <td>{{ g.label }}</td>
-            <td>{{ "%.0f"|format(g.goal_pct * 100) }}%</td>
-            <td>{{ "%.2f"|format(g.actual_chance * 100) }}%</td>
+        {% for g in ladder %}
+        <tr class="{{ 'total-row' if g.pct == record.strength else '' }}">
+            <td>{{ g.pct }}%</td>
+            <td>{{ "%.6f"|format(g.prob_reach * 100) }}%</td>
             <td>{{ "{:,.0f}".format(g.avg_needed).replace(",", " ") }}</td>
+            <td>{{ "%.2f"|format(g.actual_chance * 100) }}%</td>
             <td>{{ "%.1f"|format(g.completion * 100) }}%</td>
             <td class="{{ 'loss' if g.remaining > 0 else 'win' }}">{{ "{:,.0f}".format(g.remaining).replace(",", " ") }}</td>
         </tr>

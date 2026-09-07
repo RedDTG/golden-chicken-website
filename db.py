@@ -296,31 +296,30 @@ def _prob_at_least_one(total_fights, n):
     return 1 - (1 - p) ** total_fights
 
 
-# Horizons de la table "Objectifs" - (libelle, heures pour Best streak, objectif de % de victoire)
-FARMING_GOALS = [
-    ("5h", 5, 0.86),
-    ("12h", 12, 0.87),
-    ("24h", 24, 0.90),
-    ("Total", None, 0.95),
-]
-
-
-def farming_goals(conn, total_fights):
-    goals = []
-    for label, hours, goal_pct in FARMING_GOALS:
-        n = round((goal_pct - 0.50) * 100)
+def farming_ladder(conn, total_fights, start_pct=50):
+    """Echelle complete de probabilites, du % de depart (le record actuel par
+    defaut) jusqu'a 100%, une ligne par point de victoire - mêmes formules
+    que l'onglet 'Probas 2' (colonnes C/D), sans notion d'horizon temporel :
+    contrairement a l'ancienne table a 4 lignes fixes (5h/12h/24h/Total), ces
+    probabilites portent sur le nombre total de combats joues, pas sur une
+    fenetre de temps - leur accoler un libelle en heures n'avait pas de sens
+    et rendait la table incoherente."""
+    start_pct = max(start_pct, 51)  # n=0 (50%) n'est pas un "objectif" a atteindre
+    ladder = []
+    for pct in range(start_pct, 101):
+        n = pct - 50
         avg_needed = _avg_attempts_for_streak(n)
-        goals.append(
+        ladder.append(
             {
-                "label": label,
-                "goal_pct": goal_pct,
-                "actual_chance": _prob_at_least_one(total_fights, n),
+                "pct": pct,
+                "prob_reach": _prob_reach_n_wins(n),
                 "avg_needed": avg_needed,
+                "actual_chance": _prob_at_least_one(total_fights, n),
                 "completion": (total_fights / avg_needed) if avg_needed else 0,
                 "remaining": avg_needed - total_fights,
             }
         )
-    return goals
+    return ladder
 
 
 def farming_record(conn):
