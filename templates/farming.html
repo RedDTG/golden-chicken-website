@@ -21,6 +21,17 @@
         </tr>
     </thead>
     <tbody>
+        <tr class="total-row">
+            <td>{{ all_row.name }}</td>
+            {% for label, hours in windows %}
+            <td>{{ streak_cell(all_row.streaks, label) }}</td>
+            {% endfor %}
+            <td>{{ streak_cell(all_row.streaks, "all") }}</td>
+            <td>{{ all_row.total }}</td>
+            <td class="win">{{ all_row.wins }}</td>
+            <td class="loss">{{ all_row.losses }}</td>
+            <td>{{ "%.1f"|format(all_row.winrate * 100) }}%</td>
+        </tr>
         {% for p in players %}
         <tr>
             <td>{{ p.name }}</td>
@@ -34,17 +45,6 @@
             <td>{{ "%.1f"|format(p.winrate * 100) }}%</td>
         </tr>
         {% endfor %}
-        <tr class="total-row">
-            <td>{{ all_row.name }}</td>
-            {% for label, hours in windows %}
-            <td>{{ streak_cell(all_row.streaks, label) }}</td>
-            {% endfor %}
-            <td>{{ streak_cell(all_row.streaks, "all") }}</td>
-            <td>{{ all_row.total }}</td>
-            <td class="win">{{ all_row.wins }}</td>
-            <td class="loss">{{ all_row.losses }}</td>
-            <td>{{ "%.1f"|format(all_row.winrate * 100) }}%</td>
-        </tr>
     </tbody>
 </table>
 </div>
