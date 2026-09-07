@@ -11,6 +11,21 @@ app = FastAPI(title="Golden Chicken")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+
+def static_version(filename):
+    # Horodatage du fichier lu a chaque requete (pas au demarrage) pour que
+    # le navigateur revoit un CSS modifie meme sans redemarrer l'app -
+    # sinon le cache navigateur peut garder indefiniment un ancien style.css
+    # (deja arrive : une modif de couleur invisible tant que ce param ne
+    # changeait pas dans l'URL).
+    try:
+        return int(os.path.getmtime(os.path.join("static", filename)))
+    except OSError:
+        return 0
+
+
+templates.env.globals["static_version"] = static_version
+
 PAGE_SIZE = 50
 FARMING_WINDOWS = [("1h", 1), ("5h", 5), ("12h", 12), ("24h", 24)]
 
