@@ -41,20 +41,20 @@
     </thead>
     <tbody>
         {% for label, hours in windows %}
-        <tr>
+        <tr class="streak-row">
             <td>Best streak ({{ label }})</td>
             {% for c in columns %}
             <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ streak_cell(c.streaks, label) }}</td>
             {% endfor %}
         </tr>
         {% endfor %}
-        <tr>
+        <tr class="streak-row">
             <td>Best streak (total)</td>
             {% for c in columns %}
             <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ streak_cell(c.streaks, "all") }}</td>
             {% endfor %}
         </tr>
-        <tr>
+        <tr class="section-divider">
             <td>Combats</td>
             {% for c in columns %}
             <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ c.total }}</td>
