@@ -4,6 +4,30 @@
 {% macro streak_cell(streaks, key) %}{{ (streaks[key] ~ "%") if streaks[key] is not none else "-" }}{% endmacro %}
 
 {% block content %}
+<h2>Record actuel</h2>
+{% if record %}
+<section class="summary-cards">
+    <div class="card">
+        <span class="card-label">Meilleur poulet</span>
+        <span class="card-value">{{ record.strength }}%</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Joueur</span>
+        <span class="card-value">{{ record.player }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Date</span>
+        <span class="card-value" style="font-size:1rem;">{{ record.timestamp }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Rarete</span>
+        <span class="card-value">{{ "%.2f"|format(record.rarity * 100) }}%</span>
+    </div>
+</section>
+{% else %}
+<p class="hint">Aucune donnee.</p>
+{% endif %}
+
 <h2>Meilleures series (Pouleto Farmingo)</h2>
 <div class="table-wrap">
 <table>
@@ -78,27 +102,4 @@
 </table>
 </div>
 
-<h2>Record actuel</h2>
-{% if record %}
-<section class="summary-cards">
-    <div class="card">
-        <span class="card-label">Meilleur poulet</span>
-        <span class="card-value">{{ record.strength }}%</span>
-    </div>
-    <div class="card">
-        <span class="card-label">Joueur</span>
-        <span class="card-value">{{ record.player }}</span>
-    </div>
-    <div class="card">
-        <span class="card-label">Date</span>
-        <span class="card-value" style="font-size:1rem;">{{ record.timestamp }}</span>
-    </div>
-    <div class="card">
-        <span class="card-label">Rarete</span>
-        <span class="card-value">{{ "%.2f"|format(record.rarity * 100) }}%</span>
-    </div>
-</section>
-{% else %}
-<p class="hint">Aucune donnee.</p>
-{% endif %}
 {% endblock %}
