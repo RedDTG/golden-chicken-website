@@ -28,47 +28,56 @@
 <p class="hint">Aucune donnee.</p>
 {% endif %}
 
-<h2>Meilleures series (Pouleto Farmingo)</h2>
+<h2>Meilleures series</h2>
 <div class="table-wrap">
 <table>
     <thead>
         <tr>
-            <th>Joueur</th>
-            {% for label, hours in windows %}
-            <th>Best streak ({{ label }})</th>
+            <th>Pouleto Farmingo</th>
+            {% for c in columns %}
+            <th class="{{ 'total-row' if c.name == 'All' else '' }}">{{ c.name }}</th>
             {% endfor %}
-            <th>Best streak (total)</th>
-            <th>Combats</th>
-            <th>Victoires</th>
-            <th>Defaites</th>
-            <th>Win rate</th>
         </tr>
     </thead>
     <tbody>
-        <tr class="total-row">
-            <td>{{ all_row.name }}</td>
-            {% for label, hours in windows %}
-            <td>{{ streak_cell(all_row.streaks, label) }}</td>
-            {% endfor %}
-            <td>{{ streak_cell(all_row.streaks, "all") }}</td>
-            <td>{{ all_row.total }}</td>
-            <td class="win">{{ all_row.wins }}</td>
-            <td class="loss">{{ all_row.losses }}</td>
-            <td>{{ "%.1f"|format(all_row.winrate * 100) }}%</td>
-        </tr>
-        {% for p in players %}
+        {% for label, hours in windows %}
         <tr>
-            <td>{{ p.name }}</td>
-            {% for label, hours in windows %}
-            <td>{{ streak_cell(p.streaks, label) }}</td>
+            <td>Best streak ({{ label }})</td>
+            {% for c in columns %}
+            <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ streak_cell(c.streaks, label) }}</td>
             {% endfor %}
-            <td>{{ streak_cell(p.streaks, "all") }}</td>
-            <td>{{ p.total }}</td>
-            <td class="win">{{ p.wins }}</td>
-            <td class="loss">{{ p.losses }}</td>
-            <td>{{ "%.1f"|format(p.winrate * 100) }}%</td>
         </tr>
         {% endfor %}
+        <tr>
+            <td>Best streak (total)</td>
+            {% for c in columns %}
+            <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ streak_cell(c.streaks, "all") }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Combats</td>
+            {% for c in columns %}
+            <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ c.total }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Victoires</td>
+            {% for c in columns %}
+            <td class="{{ 'win' if c.name != 'All' else 'win total-row' }}">{{ c.wins }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Defaites</td>
+            {% for c in columns %}
+            <td class="{{ 'loss' if c.name != 'All' else 'loss total-row' }}">{{ c.losses }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            <td>Win rate</td>
+            {% for c in columns %}
+            <td class="{{ 'total-row' if c.name == 'All' else '' }}">{{ "%.1f"|format(c.winrate * 100) }}%</td>
+            {% endfor %}
+        </tr>
     </tbody>
 </table>
 </div>
