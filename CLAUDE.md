@@ -5,13 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A read-only FastAPI website that reproduces the Google Sheet dashboard used
-by the sibling repo `golden-chicken-stats`: a player leaderboard (Overview
-tab), a paginated fight log (Cockfights tab), and a balance-tracking view
-(Bank tab). Instead of talking to the Google Sheets API, it reads directly
-from `golden-chicken-stats`'s SQLite file (`bot.db`), which that bot's own
-CLAUDE.md documents as the actual source of truth (Sheets is just a mirror
-kept in sync from it). This site never writes to that database — every
-connection is opened `mode=ro` (see `db.py`).
+by the sibling repo `golden-chicken-stats`: a farming dashboard (Pouleto
+Farmingo tab, the home page), a player leaderboard (Overview tab, at
+`/classement`), a paginated fight log (Cockfights tab), and a
+balance-tracking view (Bank tab). Instead of talking to the Google Sheets
+API, it reads directly from `golden-chicken-stats`'s SQLite file (`bot.db`),
+which that bot's own CLAUDE.md documents as the actual source of truth
+(Sheets is just a mirror kept in sync from it). This site never writes to
+that database — every connection is opened `mode=ro` (see `db.py`).
 
 Related repos (siblings, not submodules):
 - `golden-chicken-stats` — the Discord bot that logs `+cf` cockfight results
@@ -65,13 +66,15 @@ module:
    Python per request rather than in SQL, matching the sibling bot's own
    approach and keeping the fallback-grouping logic in one readable place;
    revisit only if the row count ever makes this slow.
-2. **`app.py`**: three FastAPI routes rendering Jinja2 templates —
-   `/` (leaderboard + top-5 win-probability records), `/historique`
-   (paginated, filterable fight log), `/solde` (paginated, filterable
-   `+bal` log). All filtering/sorting/pagination is server-side via query
-   params (no JS framework, no client state) — a page reload is the whole
-   interaction model, deliberately, to match the rest of this project's
-   preference for simple single-purpose scripts over a build pipeline.
+2. **`app.py`**: four FastAPI routes rendering Jinja2 templates —
+   `/` (the farming dashboard, see below), `/classement` (leaderboard +
+   top-5 win-probability records — the original home page, moved here),
+   `/historique` (paginated, filterable fight log), `/solde` (paginated,
+   filterable `+bal` log). All filtering/sorting/pagination is server-side
+   via query params (no JS framework, no client state) — a page reload is
+   the whole interaction model, deliberately, to match the rest of this
+   project's preference for simple single-purpose scripts over a build
+   pipeline.
 3. **Templates/static**: plain Jinja2 + hand-written CSS (`static/style.css`,
    dark theme), no bundler, no client-side JS at all — filter forms submit
    as a plain GET.
@@ -89,3 +92,47 @@ conventions all come from `golden-chicken-stats`, any change to that bot's
 `stats`/`bank` table schema or to its result/gain encoding needs a matching
 update here (`db.py`'s queries and `build_overview()`) or this site will
 silently misread the data (wrong aggregates, not a crash).
+
+## Farming dashboard (home page, `/`)
+
+Reproduces the Google Sheet's "Pouleto Farmingo" tab, reverse-engineered from
+its live formulas (not just its displayed values) so the math here matches
+exactly rather than approximately:
+
+- `FARMING_PLAYERS` (`db.py`) is a hardcoded list of the four tracked
+  accounts (`Cheval_2_3`, `Gol__mon`, `Ittap_el`, `Tarte2foutre`), matched
+  case-insensitively against the `player` column — same convention and same
+  trust level as `TRACKED_MEMBER_IDS` in `golden-chicken-stats`. No
+  auto-detection; add a name here by hand if a new account joins the
+  farming rotation. The "All" row aggregates every row in `stats`, not just
+  these four (matches the Sheet's `Overview!$B$2`-sourced Total row).
+- **Best streak (last Xh)**: highest `strength` among that player's
+  `Victoire` rows with `timestamp >=` a cutoff computed via `TIMEZONE`
+  (defaults `Europe/Paris`, same env var as the bot) — mirrors the Sheet's
+  `QUERY(... A >= NOW()-X/24 ...)` formulas.
+- **Objectifs (goals) table**: the game's mechanic is a fresh chicken starts
+  at 50% and each consecutive win adds 1 point (see `_kelly_bet` in
+  `golden-chicken-stats`), so the probability a *single* streak-attempt
+  reaches `n` consecutive wins is `∏_{k=0}^{n-1}(0.50 + 0.01k)`
+  (`_prob_reach_n_wins`) — computed analytically here rather than read from
+  the Sheet's `Probas 2` tab, which hardcodes the same formula as a
+  100-row lookup table (and has a copy-paste row-offset bug on two of its
+  four goal rows that this reimplementation doesn't reproduce). From that:
+  `_avg_attempts_for_streak(n) = 1/p` (expected number of independent
+  chicken-attempts to see one reach `n`, geometric distribution mean), and
+  `_rarity(total_fights, n)` estimates how surprising it would be to see a
+  streak that long *at least twice* by pure chance across `total_fights`
+  total fights recorded — `1 - P(X<=1)` for `X ~ Binomial(total_fights, p)`,
+  computed directly from the two lowest terms (`p` is tiny and
+  `total_fights` large — `math.comb`-based approaches risk overflow/underflow
+  that this avoids). `FARMING_GOALS` hardcodes the four horizon/goal pairs
+  from the Sheet (5h→86%, 12h→87%, 24h→90%, all-time→95%).
+- **Record actuel**: the highest `strength` ever logged on a `Victoire`,
+  plus its rarity computed against `COUNT(*) FROM stats WHERE timestamp <=`
+  that record's own timestamp (fights played *up to that point*, not the
+  live total) — matches the Sheet's `COUNTIF(Stats!A:A;"<="&L9)`. See the
+  2026-09-01 incident (fixed by deleting 26 corrupted rows directly from the
+  Sheet — a `golden-chicken-finder` bug produced a `gol__mon` streak with
+  impossible non-monotonic jumps up to a repeated 100%) for why this number
+  should always be sanity-checked against the fight-by-fight history before
+  trusting it after an anomaly.

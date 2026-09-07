@@ -1,10 +1,11 @@
 # Golden Chicken Website
 
 Site web en lecture seule qui reprend les fonctionnalites du Google Sheet
-utilise par [golden-chicken-stats](../golden-chicken-stats) : classement des
-joueurs (Overview), historique des combats (Cockfights) et suivi du solde
-(Bank). Au lieu de lire le Google Sheet, le site lit directement le fichier
-SQLite `bot.db` qui sert de source de verite a ce bot.
+utilise par [golden-chicken-stats](../golden-chicken-stats) : dashboard de
+farming (Pouleto Farmingo), classement des joueurs (Overview), historique
+des combats (Cockfights) et suivi du solde (Bank). Au lieu de lire le Google
+Sheet, le site lit directement le fichier SQLite `bot.db` qui sert de source
+de verite a ce bot.
 
 ## Setup & lancement
 
@@ -38,8 +39,11 @@ Deploye via Nixpacks (`nixpacks.toml`).
 
 ## Pages
 
-- `/` — Classement des joueurs (equivalent de l'onglet Overview) + records de
-  probabilite de victoire.
+- `/` — Dashboard de farming (equivalent de l'onglet Pouleto Farmingo) :
+  meilleures series par joueur suivi sur 1h/5h/12h/24h/total, objectifs de
+  probabilite et record actuel.
+- `/classement` — Classement des joueurs (equivalent de l'onglet Overview) +
+  records de probabilite de victoire.
 - `/historique` — Historique des combats (equivalent de l'onglet Cockfights),
   filtrable par serveur/joueur/resultat, pagine.
 - `/solde` — Suivi des `+bal` observes pour les joueurs suivis (equivalent de

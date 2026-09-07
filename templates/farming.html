@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Farming - Golden Chicken{% endblock %}
+
+{% macro streak_cell(streaks, key) %}{{ (streaks[key] ~ "%") if streaks[key] is not none else "-" }}{% endmacro %}
+
+{% block content %}
+<h2>Meilleures series (Pouleto Farmingo)</h2>
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Joueur</th>
+            {% for label, hours in windows %}
+            <th>Best streak ({{ label }})</th>
+            {% endfor %}
+            <th>Best streak (total)</th>
+            <th>Combats</th>
+            <th>Victoires</th>
+            <th>Defaites</th>
+            <th>Win rate</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in players %}
+        <tr>
+            <td>{{ p.name }}</td>
+            {% for label, hours in windows %}
+            <td>{{ streak_cell(p.streaks, label) }}</td>
+            {% endfor %}
+            <td>{{ streak_cell(p.streaks, "all") }}</td>
+            <td>{{ p.total }}</td>
+            <td class="win">{{ p.wins }}</td>
+            <td class="loss">{{ p.losses }}</td>
+            <td>{{ "%.1f"|format(p.winrate * 100) }}%</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+            <td>{{ all_row.name }}</td>
+            {% for label, hours in windows %}
+            <td>{{ streak_cell(all_row.streaks, label) }}</td>
+            {% endfor %}
+            <td>{{ streak_cell(all_row.streaks, "all") }}</td>
+            <td>{{ all_row.total }}</td>
+            <td class="win">{{ all_row.wins }}</td>
+            <td class="loss">{{ all_row.losses }}</td>
+            <td>{{ "%.1f"|format(all_row.winrate * 100) }}%</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+
+<h2>Objectifs</h2>
+<p class="hint">Chance actuelle = probabilite d'observer au moins 2 fois un poulet a ce niveau, vu le nombre de combats deja joues. Combats moyens necessaires = nombre moyen de poulets qu'il faudrait pour qu'un seul y arrive (loi geometrique).</p>
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Horizon</th>
+            <th>Objectif</th>
+            <th>Chance actuelle</th>
+            <th>Combats moyens necessaires</th>
+            <th>% Completion</th>
+            <th>Restant</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for g in goals %}
+        <tr>
+            <td>{{ g.label }}</td>
+            <td>{{ "%.0f"|format(g.goal_pct * 100) }}%</td>
+            <td>{{ "%.2f"|format(g.actual_chance * 100) }}%</td>
+            <td>{{ "{:,.0f}".format(g.avg_needed).replace(",", " ") }}</td>
+            <td>{{ "%.1f"|format(g.completion * 100) }}%</td>
+            <td class="{{ 'loss' if g.remaining > 0 else 'win' }}">{{ "{:,.0f}".format(g.remaining).replace(",", " ") }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<h2>Record actuel</h2>
+{% if record %}
+<section class="summary-cards">
+    <div class="card">
+        <span class="card-label">Meilleur poulet</span>
+        <span class="card-value">{{ record.strength }}%</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Joueur</span>
+        <span class="card-value">{{ record.player }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Date</span>
+        <span class="card-value" style="font-size:1rem;">{{ record.timestamp }}</span>
+    </div>
+    <div class="card">
+        <span class="card-label">Rarete</span>
+        <span class="card-value">{{ "%.2f"|format(record.rarity * 100) }}%</span>
+    </div>
+</section>
+{% else %}
+<p class="hint">Aucune donnee.</p>
+{% endif %}
+{% endblock %}

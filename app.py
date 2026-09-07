@@ -12,9 +12,40 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 PAGE_SIZE = 50
+FARMING_WINDOWS = [("1h", 1), ("5h", 5), ("12h", 12), ("24h", 24)]
 
 
 @app.get("/")
+def farming(request: Request):
+    with db.get_connection() as conn:
+        players = []
+        for player in db.FARMING_PLAYERS:
+            streaks = {label: db.best_streak(conn, player, db.since_hours(hours)) for label, hours in FARMING_WINDOWS}
+            streaks["all"] = db.best_streak(conn, player)
+            players.append({"name": player, "streaks": streaks, **db.player_row_stats(conn, player)})
+
+        all_streaks = {label: db.best_streak(conn, None, db.since_hours(hours)) for label, hours in FARMING_WINDOWS}
+        all_streaks["all"] = db.best_streak(conn)
+        all_row = {"name": "All", "streaks": all_streaks, **db.player_row_stats(conn)}
+
+        goals = db.farming_goals(conn, all_row["total"])
+        record = db.farming_record(conn)
+
+    return templates.TemplateResponse(
+        "farming.html",
+        {
+            "request": request,
+            "active": "farming",
+            "windows": FARMING_WINDOWS,
+            "players": players,
+            "all_row": all_row,
+            "goals": goals,
+            "record": record,
+        },
+    )
+
+
+@app.get("/classement")
 def overview(request: Request, sort: str = "total", dir: str = "desc"):
     with db.get_connection() as conn:
         rows = db.build_overview(conn)

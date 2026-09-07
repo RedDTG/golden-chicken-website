@@ -190,6 +190,11 @@ tbody tr:hover {
     color: var(--muted);
 }
 
+.total-row {
+    font-weight: 700;
+    background: rgba(240, 180, 41, 0.06);
+}
+
 a.sortable {
     color: inherit;
     text-decoration: none;

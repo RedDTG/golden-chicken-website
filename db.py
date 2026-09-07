@@ -9,15 +9,23 @@ que le bot golden-chicken-stats.
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 DB_PATH = os.getenv("DB_PATH", "bot.db")
+TIMEZONE = ZoneInfo(os.getenv("TIMEZONE", "Europe/Paris"))
 
 RESULT_VICTOIRE = "Victoire"
 RESULT_DEFAITE = "Defaite"
+
+# Comptes suivis sur la page "Pouleto Farmingo" (reprend les memes joueurs que
+# l'onglet du meme nom dans le Google Sheet) - liste figee au meme titre que
+# TRACKED_MEMBER_IDS cote golden-chicken-stats, pas de detection automatique.
+FARMING_PLAYERS = ["Cheval_2_3", "Gol__mon", "Ittap_el", "Tarte2foutre"]
 
 
 @contextmanager
@@ -191,3 +199,138 @@ def fetch_records(conn, limit=10):
         (RESULT_VICTOIRE, limit),
     ).fetchall()
     return rows
+
+
+def since_hours(hours):
+    """Horodatage ISO (meme format+fuseau que golden-chicken-stats) pour un
+    filtre 'depuis les X dernieres heures', comparable par simple tri de
+    chaine avec la colonne timestamp (voir last_win_strength() cote bot)."""
+    return (datetime.now(TIMEZONE) - timedelta(hours=hours)).isoformat(timespec="seconds")
+
+
+def player_row_stats(conn, player=None):
+    """Combats/victoires/defaites/winrate pour un pseudo (ou globalement si
+    player est None) - equivalent des colonnes Combats/Victoires/Defaites/
+    Win rate de l'onglet Pouleto Farmingo (elles-memes tirees d'Overview)."""
+    where = "WHERE lower(player) = ?" if player else ""
+    params = [player.lower()] if player else []
+    total = conn.execute(f"SELECT COUNT(*) FROM stats {where}", params).fetchone()[0]
+    wins = conn.execute(
+        f"SELECT COUNT(*) FROM stats {where}{' AND' if where else 'WHERE'} result = ?",
+        params + [RESULT_VICTOIRE],
+    ).fetchone()[0]
+    losses = conn.execute(
+        f"SELECT COUNT(*) FROM stats {where}{' AND' if where else 'WHERE'} result = ?",
+        params + [RESULT_DEFAITE],
+    ).fetchone()[0]
+    return {
+        "total": total,
+        "wins": wins,
+        "losses": losses,
+        "winrate": (wins / total) if total else 0,
+    }
+
+
+def best_streak(conn, player=None, since=None):
+    """Plus haute Probabilite (%) atteinte sur une Victoire, tous poulets
+    confondus pour ce joueur (ou globalement) - equivalent des lignes 'Best
+    streak (last Xh)' de l'onglet Pouleto Farmingo."""
+    where = ["result = ?", "strength != ''"]
+    params = [RESULT_VICTOIRE]
+    if player:
+        where.append("lower(player) = ?")
+        params.append(player.lower())
+    if since:
+        where.append("timestamp >= ?")
+        params.append(since)
+    row = conn.execute(
+        f"SELECT MAX(CAST(strength AS INTEGER)) FROM stats WHERE {' AND '.join(where)}", params
+    ).fetchone()
+    return row[0]
+
+
+def _prob_reach_n_wins(n):
+    """Probabilite qu'un poulet fraichement achete (50% de chance des la
+    1ere victoire, +1 point par victoire consecutive - voir _kelly_bet dans
+    golden-chicken-stats) enchaine au moins n victoires d'affilee avant de
+    perdre : produit des chances de gagner chacun des n combats necessaires.
+    Reproduit la colonne C de l'onglet 'Probas 2' du Sheet, mais calculee a
+    la volee plutot que lue dans une table figee de 100 lignes."""
+    p = 1.0
+    for k in range(n):
+        p *= 0.50 + 0.01 * k
+    return p
+
+
+def _avg_attempts_for_streak(n):
+    """Nombre moyen de poulets (tentatives independantes) necessaires pour
+    qu'un seul atteigne au moins n victoires d'affilee - colonne D de
+    'Probas 2' (loi geometrique, moyenne = 1/p)."""
+    return 1 / _prob_reach_n_wins(n)
+
+
+def _rarity(total_fights, n):
+    """Probabilite d'observer au moins 2 fois un poulet a >= n victoires
+    d'affilee sur total_fights combats au total, si chaque combat etait une
+    tentative independante de probabilite _prob_reach_n_wins(n) - reproduit
+    1-BINOMDIST(1; total; p; TRUE) du Sheet (colonne E de 'Probas 2' et la
+    case 'Chance' du record dans Pouleto Farmingo). Calculee directement (pas
+    de math.comb) : avec p minuscule et total_fights ~10^5-10^6, seuls les
+    termes k=0 et k=1 de la binomiale sont non negligeables, donc pas de
+    risque de depassement de capacite/precision."""
+    p = _prob_reach_n_wins(n)
+    q = 1 - p
+    cdf_le1 = q**total_fights + total_fights * p * q ** (total_fights - 1)
+    return 1 - cdf_le1
+
+
+# Horizons de la table "Objectifs" - (libelle, heures pour Best streak, objectif de % de victoire)
+FARMING_GOALS = [
+    ("5h", 5, 0.86),
+    ("12h", 12, 0.87),
+    ("24h", 24, 0.90),
+    ("Total", None, 0.95),
+]
+
+
+def farming_goals(conn, total_fights):
+    goals = []
+    for label, hours, goal_pct in FARMING_GOALS:
+        n = round((goal_pct - 0.50) * 100)
+        avg_needed = _avg_attempts_for_streak(n)
+        goals.append(
+            {
+                "label": label,
+                "goal_pct": goal_pct,
+                "actual_chance": _rarity(total_fights, n),
+                "avg_needed": avg_needed,
+                "completion": (total_fights / avg_needed) if avg_needed else 0,
+                "remaining": avg_needed - total_fights,
+            }
+        )
+    return goals
+
+
+def farming_record(conn):
+    """Record actuel (plus haute Probabilite jamais gagnee) + sa rarete,
+    calculee avec le nombre de combats deja joues au moment ou il a ete
+    obtenu (pas le total actuel) - equivalent de la ligne 'Best/User/Time/
+    Chance' de Pouleto Farmingo."""
+    row = conn.execute(
+        "SELECT player, strength, timestamp FROM stats "
+        "WHERE result = ? AND strength != '' "
+        "ORDER BY CAST(strength AS INTEGER) DESC, timestamp ASC LIMIT 1",
+        (RESULT_VICTOIRE,),
+    ).fetchone()
+    if row is None:
+        return None
+    strength = int(row["strength"])
+    fights_at_time = conn.execute(
+        "SELECT COUNT(*) FROM stats WHERE timestamp <= ?", (row["timestamp"],)
+    ).fetchone()[0]
+    return {
+        "player": row["player"],
+        "strength": strength,
+        "timestamp": row["timestamp"],
+        "rarity": _rarity(fights_at_time, strength - 50),
+    }
