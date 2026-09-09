@@ -6,3 +6,5 @@ venv/
 *.db
 *.db-wal
 *.db-shm
+node_modules/
+package-lock.json
