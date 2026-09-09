@@ -8,6 +8,7 @@ que le bot golden-chicken-stats.
 
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -55,7 +56,28 @@ def fetch_stats_rows(conn):
     ).fetchall()
 
 
+OVERVIEW_CACHE_TTL = 30  # secondes
+_overview_cache = {"data": None, "expires": 0.0}
+
+
 def build_overview(conn):
+    """Classement (voir _build_overview ci-dessous), cache en memoire
+    OVERVIEW_CACHE_TTL secondes. Sur bot.db a ~870k lignes, l'agregation
+    Python ligne par ligne prend plusieurs secondes (voir CLAUDE.md,
+    "Farming dashboard") - un classement n'a pas besoin d'etre a la
+    seconde pres, donc ce cache evite de la refaire a chaque chargement
+    de /classement plutot que de reecrire l'agregation en SQL (le
+    regroupement id:/name: est plus simple a garder lisible en Python)."""
+    now = time.monotonic()
+    if _overview_cache["data"] is not None and now < _overview_cache["expires"]:
+        return _overview_cache["data"]
+    data = _build_overview(conn)
+    _overview_cache["data"] = data
+    _overview_cache["expires"] = now + OVERVIEW_CACHE_TTL
+    return data
+
+
+def _build_overview(conn):
     """Reproduit le calcul de l'onglet Overview du Google Sheet (voir
     _update_overview_impl dans golden-chicken-stats/bot.py) : regroupement
     par ID Discord quand connu, sinon par pseudo en minuscules pour les
@@ -208,45 +230,51 @@ def since_hours(hours):
     return (datetime.now(TIMEZONE) - timedelta(hours=hours)).isoformat(timespec="seconds")
 
 
-def player_row_stats(conn, player=None):
-    """Combats/victoires/defaites/winrate pour un pseudo (ou globalement si
-    player est None) - equivalent des colonnes Combats/Victoires/Defaites/
-    Win rate de l'onglet Pouleto Farmingo (elles-memes tirees d'Overview)."""
+def farming_column(conn, windows, player=None):
+    """Une colonne du tableau 'Meilleures series' (combats/victoires/defaites
+    + best streak par fenetre de temps + all-time) en UNE requete SQL.
+
+    Avant : 5 appels best_streak() + 3 requetes COUNT (player_row_stats) par
+    colonne, soit 8 requetes x 5 colonnes (4 joueurs + All) = 40 requetes par
+    chargement de page - chacune re-scannant (ou re-cherchant via l'index) le
+    meme sous-ensemble de lignes. Sur bot.db a ~870k lignes ca faisait monter
+    la page a plus de 10s meme avec les bons index en place (voir CLAUDE.md,
+    "Farming dashboard"). Regrouper tous les agregats dans un seul SELECT
+    avec des CASE/MAX/SUM ne scanne le sous-ensemble du joueur qu'une fois.
+    """
+    windows = list(windows)
     where = "WHERE lower(player) = ?" if player else ""
-    params = [player.lower()] if player else []
-    total = conn.execute(f"SELECT COUNT(*) FROM stats {where}", params).fetchone()[0]
-    wins = conn.execute(
-        f"SELECT COUNT(*) FROM stats {where}{' AND' if where else 'WHERE'} result = ?",
-        params + [RESULT_VICTOIRE],
-    ).fetchone()[0]
-    losses = conn.execute(
-        f"SELECT COUNT(*) FROM stats {where}{' AND' if where else 'WHERE'} result = ?",
-        params + [RESULT_DEFAITE],
-    ).fetchone()[0]
+    since_columns = ", ".join(
+        f"MAX(CASE WHEN result = ? AND strength != '' AND timestamp >= ? THEN CAST(strength AS INTEGER) END)"
+        for _ in windows
+    )
+    query = (
+        "SELECT COUNT(*), "
+        "SUM(CASE WHEN result = ? THEN 1 ELSE 0 END), "
+        "SUM(CASE WHEN result = ? THEN 1 ELSE 0 END), "
+        "MAX(CASE WHEN result = ? AND strength != '' THEN CAST(strength AS INTEGER) END)"
+        + (", " + since_columns if windows else "")
+        + f" FROM stats {where}"
+    )
+    params = [RESULT_VICTOIRE, RESULT_DEFAITE, RESULT_VICTOIRE]
+    for _, hours in windows:
+        params.extend([RESULT_VICTOIRE, since_hours(hours)])
+    if player:
+        params.append(player.lower())
+
+    total, wins, losses, streak_all, *window_streaks = conn.execute(query, params).fetchone()
+    total = total or 0
+    wins = wins or 0
+    losses = losses or 0
+    streaks = {label: value for (label, _hours), value in zip(windows, window_streaks)}
+    streaks["all"] = streak_all
     return {
         "total": total,
         "wins": wins,
         "losses": losses,
         "winrate": (wins / total) if total else 0,
+        "streaks": streaks,
     }
-
-
-def best_streak(conn, player=None, since=None):
-    """Plus haute Probabilite (%) atteinte sur une Victoire, tous poulets
-    confondus pour ce joueur (ou globalement) - equivalent des lignes 'Best
-    streak (last Xh)' de l'onglet Pouleto Farmingo."""
-    where = ["result = ?", "strength != ''"]
-    params = [RESULT_VICTOIRE]
-    if player:
-        where.append("lower(player) = ?")
-        params.append(player.lower())
-    if since:
-        where.append("timestamp >= ?")
-        params.append(since)
-    row = conn.execute(
-        f"SELECT MAX(CAST(strength AS INTEGER)) FROM stats WHERE {' AND '.join(where)}", params
-    ).fetchone()
-    return row[0]
 
 
 def _prob_reach_n_wins(n):
@@ -345,3 +373,32 @@ def farming_record(conn):
         "timestamp": row["timestamp"],
         "rarity": _rarity(fights_at_time, strength - 50),
     }
+
+
+FARMING_CACHE_TTL = 30  # secondes
+_farming_cache = {"data": None, "expires": 0.0}
+
+
+def farming_dashboard(conn, windows):
+    """Colonnes + record + echelle d'objectifs de la page Farming, cache en
+    memoire FARMING_CACHE_TTL secondes - meme raisonnement que le cache de
+    build_overview() : sur bot.db a ~870k lignes, l'ensemble (5 colonnes +
+    record) prend ~2.5s meme une fois les requetes regroupees (voir
+    farming_column()), et un dashboard de farming n'a pas besoin d'etre a la
+    seconde pres."""
+    now = time.monotonic()
+    if _farming_cache["data"] is not None and now < _farming_cache["expires"]:
+        return _farming_cache["data"]
+
+    players = [
+        {"name": player, **farming_column(conn, windows, player)}
+        for player in FARMING_PLAYERS
+    ]
+    all_row = {"name": "All", **farming_column(conn, windows)}
+    record = farming_record(conn)
+    ladder = farming_ladder(conn, all_row["total"], start_pct=record["strength"] if record else 50)
+
+    data = {"columns": players + [all_row], "record": record, "ladder": ladder}
+    _farming_cache["data"] = data
+    _farming_cache["expires"] = now + FARMING_CACHE_TTL
+    return data

@@ -33,18 +33,7 @@ FARMING_WINDOWS = [("1h", 1), ("5h", 5), ("12h", 12), ("24h", 24)]
 @app.get("/")
 def farming(request: Request):
     with db.get_connection() as conn:
-        players = []
-        for player in db.FARMING_PLAYERS:
-            streaks = {label: db.best_streak(conn, player, db.since_hours(hours)) for label, hours in FARMING_WINDOWS}
-            streaks["all"] = db.best_streak(conn, player)
-            players.append({"name": player, "streaks": streaks, **db.player_row_stats(conn, player)})
-
-        all_streaks = {label: db.best_streak(conn, None, db.since_hours(hours)) for label, hours in FARMING_WINDOWS}
-        all_streaks["all"] = db.best_streak(conn)
-        all_row = {"name": "All", "streaks": all_streaks, **db.player_row_stats(conn)}
-
-        record = db.farming_record(conn)
-        ladder = db.farming_ladder(conn, all_row["total"], start_pct=record["strength"] if record else 50)
+        dashboard = db.farming_dashboard(conn, FARMING_WINDOWS)
 
     return templates.TemplateResponse(
         "farming.html",
@@ -52,9 +41,9 @@ def farming(request: Request):
             "request": request,
             "active": "farming",
             "windows": FARMING_WINDOWS,
-            "columns": players + [all_row],
-            "ladder": ladder,
-            "record": record,
+            "columns": dashboard["columns"],
+            "ladder": dashboard["ladder"],
+            "record": dashboard["record"],
         },
     )
 
