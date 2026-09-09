@@ -52,6 +52,18 @@ nav a.active {
     border-bottom-color: var(--gold);
 }
 
+.nav-wrap {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.live-status {
+    font-size: 0.75rem;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
 main {
     max-width: 1100px;
     margin: 0 auto;

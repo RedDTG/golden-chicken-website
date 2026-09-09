@@ -9,15 +9,19 @@
 <body>
     <header>
         <div class="brand">🐔 Golden Chicken</div>
-        <nav>
-            <a href="/" class="{{ 'active' if active == 'farming' else '' }}">Farming</a>
-            <a href="/classement" class="{{ 'active' if active == 'overview' else '' }}">Classement</a>
-            <a href="/historique" class="{{ 'active' if active == 'historique' else '' }}">Historique</a>
-            <a href="/solde" class="{{ 'active' if active == 'solde' else '' }}">Solde</a>
-        </nav>
+        <div class="nav-wrap">
+            <nav>
+                <a href="/" class="{{ 'active' if active == 'farming' else '' }}">Farming</a>
+                <a href="/classement" class="{{ 'active' if active == 'overview' else '' }}">Classement</a>
+                <a href="/historique" class="{{ 'active' if active == 'historique' else '' }}">Historique</a>
+                <a href="/solde" class="{{ 'active' if active == 'solde' else '' }}">Solde</a>
+            </nav>
+            <span id="live-status" class="live-status" title="Actualisation automatique toutes les 30s"></span>
+        </div>
     </header>
-    <main>
+    <main id="page-content">
         {% block content %}{% endblock %}
     </main>
+    <script src="/static/app.js?v={{ static_version('app.js') }}"></script>
 </body>
 </html>
