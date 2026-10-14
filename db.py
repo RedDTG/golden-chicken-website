@@ -407,10 +407,19 @@ def format_bucket_label(bucket, granularity):
     return f"{int(day):02d} {MONTH_NAMES_FR[int(month) - 1]} {year}"
 
 
-def fetch_date_bounds(conn):
+def fetch_date_bounds(conn, players=None):
     """Plage de dates couverte par stats (bornes par defaut du selecteur de
-    dates du graphique : de la premiere a la derniere donnee)."""
-    row = conn.execute("SELECT MIN(date(timestamp)), MAX(date(timestamp)) FROM stats").fetchone()
+    dates du graphique : de la premiere a la derniere donnee), restreinte aux
+    comptes surveilles (FARMING_PLAYERS) quand fournis - sinon le datepicker
+    pourrait proposer une date par defaut sans aucune donnee pour ces comptes
+    (ex. un autre membre du serveur ayant joue +cf avant eux)."""
+    where = ""
+    params = []
+    if players:
+        placeholders = ", ".join("?" for _ in players)
+        where = f"WHERE lower(player) IN ({placeholders})"
+        params = [p.lower() for p in players]
+    row = conn.execute(f"SELECT MIN(date(timestamp)), MAX(date(timestamp)) FROM stats {where}", params).fetchone()
     return row[0], row[1]
 
 
@@ -418,12 +427,16 @@ def fetch_best_streak_series(conn, granularity="day", player=None, start=None, e
     """Une ligne par bucket (jour/semaine/mois) : la plus haute strength parmi
     les Victoire de ce bucket, et le joueur qui l'a obtenue (departage par le
     combat le plus tot en cas d'egalite) - alimente le graphique 'Best streak'
-    de /graphique. Le filtre joueur restreint la recherche du max a un seul
-    compte (une ligne = ce compte uniquement) plutot que de se contenter de
-    changer l'etiquette affichee."""
+    de /graphique. Restreint aux comptes surveilles (FARMING_PLAYERS, meme
+    liste que le tableau Farming) - les autres membres du serveur jouent aussi
+    a +cf mais ne font pas partie de la rotation suivie par ce site. Le filtre
+    joueur restreint en plus la recherche du max a un seul de ces comptes (une
+    ligne = ce compte uniquement) plutot que de se contenter de changer
+    l'etiquette affichee."""
     bucket_expr = GRANULARITY_BUCKET_EXPR.get(granularity, GRANULARITY_BUCKET_EXPR["day"])
-    where = ["result = ?", "strength != ''"]
-    params = [RESULT_VICTOIRE]
+    placeholders = ", ".join("?" for _ in FARMING_PLAYERS)
+    where = ["result = ?", "strength != ''", f"lower(player) IN ({placeholders})"]
+    params = [RESULT_VICTOIRE] + [p.lower() for p in FARMING_PLAYERS]
     if player:
         where.append("lower(player) = ?")
         params.append(player.lower())

@@ -120,8 +120,9 @@ GRANULARITIES = ("day", "week", "month")
 @app.get("/graphique")
 def graphique(request: Request, player: str = "", granularity: str = "day", start: str = "", end: str = ""):
     granularity = granularity if granularity in GRANULARITIES else "day"
+    player = player if player in db.FARMING_PLAYERS else ""
     with db.get_connection() as conn:
-        min_date, max_date = db.fetch_date_bounds(conn)
+        min_date, max_date = db.fetch_date_bounds(conn, db.FARMING_PLAYERS)
         start = start or min_date or ""
         end = end or max_date or ""
         rows = db.fetch_best_streak_series(conn, granularity, player or None, start or None, end or None)
@@ -148,6 +149,7 @@ def graphique(request: Request, player: str = "", granularity: str = "day", star
             "min_date": min_date or "",
             "max_date": max_date or "",
             "points": points,
+            "farming_players": db.FARMING_PLAYERS,
         },
     )
 

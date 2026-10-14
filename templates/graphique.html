@@ -6,7 +6,12 @@
     <input type="hidden" name="granularity" value="{{ granularity }}">
     <label>
         Compte
-        <input type="text" name="player" value="{{ player }}" placeholder="Tous les comptes...">
+        <select name="player">
+            <option value="" {{ 'selected' if not player else '' }}>Tous les comptes surveilles</option>
+            {% for p in farming_players %}
+            <option value="{{ p }}" {{ 'selected' if player == p else '' }}>{{ p }}</option>
+            {% endfor %}
+        </select>
     </label>
     <label>
         Du
@@ -26,7 +31,7 @@
     {% endfor %}
 </nav>
 
-<h2>Best streak{{ " - " ~ player if player else " (tous comptes)" }}</h2>
+<h2>Best streak{{ " - " ~ player if player else " (tous comptes surveilles)" }}</h2>
 <div class="chart-wrap">
     {% if points %}
     <canvas id="streak-chart" height="110"></canvas>
