@@ -379,6 +379,75 @@ FARMING_CACHE_TTL = 30  # secondes
 _farming_cache = {"data": None, "expires": 0.0}
 
 
+GRANULARITY_BUCKET_EXPR = {
+    "day": "date(timestamp)",
+    # %W = numero de semaine (lundi = premier jour), prefixe par l'annee pour
+    # trier/regrouper correctement les semaines a cheval sur deux annees.
+    "week": "strftime('%Y-W%W', timestamp)",
+    "month": "strftime('%Y-%m', timestamp)",
+}
+
+MONTH_NAMES_FR = [
+    "janv.", "fevr.", "mars", "avr.", "mai", "juin",
+    "juil.", "aout", "sept.", "oct.", "nov.", "dec.",
+]
+
+
+def format_bucket_label(bucket, granularity):
+    """Libelle affiche sur l'axe/tooltip du graphique pour un bucket (voir
+    fetch_best_streak_series) - le bucket lui-meme (date ISO, 'YYYY-Wnn' ou
+    'YYYY-mm') n'est pas directement lisible."""
+    if granularity == "month":
+        year, month = bucket.split("-")
+        return f"{MONTH_NAMES_FR[int(month) - 1]} {year}"
+    if granularity == "week":
+        year, week = bucket.split("-W")
+        return f"Semaine {int(week):02d} {year}"
+    year, month, day = bucket.split("-")
+    return f"{int(day):02d} {MONTH_NAMES_FR[int(month) - 1]} {year}"
+
+
+def fetch_date_bounds(conn):
+    """Plage de dates couverte par stats (bornes par defaut du selecteur de
+    dates du graphique : de la premiere a la derniere donnee)."""
+    row = conn.execute("SELECT MIN(date(timestamp)), MAX(date(timestamp)) FROM stats").fetchone()
+    return row[0], row[1]
+
+
+def fetch_best_streak_series(conn, granularity="day", player=None, start=None, end=None):
+    """Une ligne par bucket (jour/semaine/mois) : la plus haute strength parmi
+    les Victoire de ce bucket, et le joueur qui l'a obtenue (departage par le
+    combat le plus tot en cas d'egalite) - alimente le graphique 'Best streak'
+    de /graphique. Le filtre joueur restreint la recherche du max a un seul
+    compte (une ligne = ce compte uniquement) plutot que de se contenter de
+    changer l'etiquette affichee."""
+    bucket_expr = GRANULARITY_BUCKET_EXPR.get(granularity, GRANULARITY_BUCKET_EXPR["day"])
+    where = ["result = ?", "strength != ''"]
+    params = [RESULT_VICTOIRE]
+    if player:
+        where.append("lower(player) = ?")
+        params.append(player.lower())
+    if start:
+        where.append("date(timestamp) >= ?")
+        params.append(start)
+    if end:
+        where.append("date(timestamp) <= ?")
+        params.append(end)
+    where_sql = " AND ".join(where)
+
+    query = (
+        "WITH wins AS ("
+        f"  SELECT timestamp, player, CAST(strength AS INTEGER) AS strength, {bucket_expr} AS bucket"
+        f"  FROM stats WHERE {where_sql}"
+        "), ranked AS ("
+        "  SELECT bucket, player, strength, timestamp,"
+        "         ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY strength DESC, timestamp ASC) AS rn"
+        "  FROM wins"
+        ") SELECT bucket, player, strength, timestamp FROM ranked WHERE rn = 1 ORDER BY bucket ASC"
+    )
+    return conn.execute(query, params).fetchall()
+
+
 def farming_dashboard(conn, windows):
     """Colonnes + record + echelle d'objectifs de la page Farming, cache en
     memoire FARMING_CACHE_TTL secondes - meme raisonnement que le cache de

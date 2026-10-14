@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Graphique - Golden Chicken{% endblock %}
+
+{% block content %}
+<form class="filters" method="get">
+    <input type="hidden" name="granularity" value="{{ granularity }}">
+    <label>
+        Compte
+        <input type="text" name="player" value="{{ player }}" placeholder="Tous les comptes...">
+    </label>
+    <label>
+        Du
+        <input type="date" name="start" value="{{ start }}" min="{{ min_date }}" max="{{ max_date }}">
+    </label>
+    <label>
+        Au
+        <input type="date" name="end" value="{{ end }}" min="{{ min_date }}" max="{{ max_date }}">
+    </label>
+    <button type="submit">Filtrer</button>
+</form>
+
+<nav class="granularity-toggle">
+    {% for key, label in [("day", "Jour"), ("week", "Semaine"), ("month", "Mois")] %}
+    <a href="?player={{ player|urlencode }}&start={{ start|urlencode }}&end={{ end|urlencode }}&granularity={{ key }}"
+       class="{{ 'active' if granularity == key else '' }}">{{ label }}</a>
+    {% endfor %}
+</nav>
+
+<h2>Best streak{{ " - " ~ player if player else " (tous comptes)" }}</h2>
+<div class="chart-wrap">
+    {% if points %}
+    <canvas id="streak-chart" height="110"></canvas>
+    {% else %}
+    <p class="hint">Aucune donnee sur cette periode.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if points %}
+<script src="/static/chart.min.js?v={{ static_version('chart.min.js') }}"></script>
+<script>
+(function () {
+    "use strict";
+
+    var points = {{ points|tojson }};
+    var canvas = document.getElementById("streak-chart");
+    if (!canvas || !window.Chart) {
+        return;
+    }
+
+    var GOLD = "#f0b429";
+    var PANEL = "#171a21";
+    var BORDER = "#262a33";
+    var MUTED = "#8b92a3";
+    var TEXT = "#e6e8ec";
+
+    // Ligne verticale qui suit le point survole/focus - l'axe X est categoriel
+    // (un libelle par jour/semaine/mois), donc pas d'echelle 'time' native a
+    // accrocher un crosshair dessus sans ce petit plugin.
+    var crosshairPlugin = {
+        id: "crosshair",
+        afterDraw: function (chart) {
+            var active = chart.getActiveElements();
+            if (!active.length) {
+                return;
+            }
+            var x = active[0].element.x;
+            var area = chart.chartArea;
+            var ctx = chart.ctx;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x, area.top);
+            ctx.lineTo(x, area.bottom);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = "rgba(230, 232, 236, 0.25)";
+            ctx.stroke();
+            ctx.restore();
+        }
+    };
+
+    new Chart(canvas, {
+        type: "line",
+        data: {
+            labels: points.map(function (p) { return p.label; }),
+            datasets: [{
+                data: points.map(function (p) { return p.value; }),
+                borderColor: GOLD,
+                backgroundColor: "rgba(240, 180, 41, 0.1)",
+                pointBackgroundColor: GOLD,
+                pointBorderColor: PANEL,
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointHitRadius: 12,
+                borderWidth: 2,
+                tension: 0.15,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: PANEL,
+                    borderColor: BORDER,
+                    borderWidth: 1,
+                    titleColor: TEXT,
+                    bodyColor: TEXT,
+                    padding: 10,
+                    displayColors: false,
+                    callbacks: {
+                        title: function (items) {
+                            return points[items[0].dataIndex].label;
+                        },
+                        label: function (item) {
+                            var p = points[item.dataIndex];
+                            return ["Best streak : " + p.value + "%", "Compte : " + p.player];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: BORDER },
+                    ticks: { color: MUTED, maxRotation: 0, autoSkip: true }
+                },
+                y: {
+                    grid: { color: BORDER },
+                    ticks: {
+                        color: MUTED,
+                        callback: function (value) { return value + "%"; }
+                    }
+                }
+            }
+        },
+        plugins: [crosshairPlugin]
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

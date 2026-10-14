@@ -248,3 +248,36 @@ a.sortable.sorted-desc::after {
     color: var(--gold);
     text-decoration: none;
 }
+
+.granularity-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin: 1rem 0 0;
+}
+
+.granularity-toggle a {
+    color: var(--muted);
+    text-decoration: none;
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.granularity-toggle a:hover {
+    color: var(--text);
+}
+
+.granularity-toggle a.active {
+    color: var(--gold);
+    border-color: var(--gold);
+    background: rgba(240, 180, 41, 0.08);
+}
+
+.chart-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    height: 360px;
+}

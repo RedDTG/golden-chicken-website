@@ -1,15 +1,30 @@
+import json
 import math
 import os
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 import db
 
 app = FastAPI(title="Golden Chicken")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+def _tojson(value):
+    # Jinja2 (contrairement a Flask) n'a pas de filtre tojson integre -
+    # celui-ci echappe aussi "</" pour qu'un nom de joueur contenant
+    # "</script>" ne puisse pas casser hors de la balise <script> du
+    # template, et renvoie du Markup pour que l'autoescape HTML (actif par
+    # defaut sur les templates .html) ne ré-echappe pas les guillemets du
+    # JSON en &#34; (ce qui casserait le JS cote navigateur).
+    return Markup(json.dumps(value).replace("</", "<\\/"))
+
+
+templates.env.filters["tojson"] = _tojson
 
 
 def static_version(filename):
@@ -95,6 +110,44 @@ def historique(request: Request, player: str = "", result: str = "", page: int =
             "total": total,
             "page": page,
             "pages": pages,
+        },
+    )
+
+
+GRANULARITIES = ("day", "week", "month")
+
+
+@app.get("/graphique")
+def graphique(request: Request, player: str = "", granularity: str = "day", start: str = "", end: str = ""):
+    granularity = granularity if granularity in GRANULARITIES else "day"
+    with db.get_connection() as conn:
+        min_date, max_date = db.fetch_date_bounds(conn)
+        start = start or min_date or ""
+        end = end or max_date or ""
+        rows = db.fetch_best_streak_series(conn, granularity, player or None, start or None, end or None)
+
+    points = [
+        {
+            "label": db.format_bucket_label(row["bucket"], granularity),
+            "value": row["strength"],
+            "player": row["player"],
+            "timestamp": row["timestamp"],
+        }
+        for row in rows
+    ]
+
+    return templates.TemplateResponse(
+        "graphique.html",
+        {
+            "request": request,
+            "active": "graphique",
+            "player": player,
+            "granularity": granularity,
+            "start": start,
+            "end": end,
+            "min_date": min_date or "",
+            "max_date": max_date or "",
+            "points": points,
         },
     )
 
